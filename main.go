@@ -5,8 +5,15 @@ import "github.com/gin-gonic/gin"
 
 func main() {
     r := gin.Default()
-    r.GET("/", func(c *gin.Context) {
-        c.String(200, "Hello, World!")
-    })
+    r.GET("/hello", getHello)
+	r.GET("/getSchedule", getSchedule)
     r.Run(":8080")
+}
+
+func getHello(c *gin.Context) {
+	c.String(200, "Hello, World!")
+}
+
+func getSchedule(c *gin.Context) {
+	
 }
