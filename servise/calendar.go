@@ -2,29 +2,148 @@ package servise
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/google"
 	"google.golang.org/api/calendar/v3"
 	"google.golang.org/api/option"
 )
 
-// CalendarService はGoogleカレンダーへのアクセスを管理する構造体です
+// Googleカレンダーへのアクセスを管理する構造体
 type CalendarService struct {
 	service *calendar.Service
 }
 
-// NewCalendarService は新しいCalendarServiceインスタンスを作成します
-func NewCalendarService(client *http.Client) (*CalendarService, error) {
+// // 新しいCalendarServiceインスタンスを作成
+// func NewCalendarService(client *http.Client) (*CalendarService, error) {
+// 	srv, err := calendar.NewService(context.Background(), option.WithHTTPClient(client))
+// 	if err != nil {
+// 		return nil, fmt.Errorf("calendar APIサービスの作成に失敗しました: %v", err)
+// 	}
+
+// 	return &CalendarService{service: srv}, nil
+// }
+
+// token.jsonファイルからCalendarServiceを作成
+func NewCalendarServiceFromToken(tokenFile, credFile string) (*CalendarService, error) {
+	// クライアントシークレットファイルを読み込み
+	credData, err := ioutil.ReadFile(credFile)
+	if err != nil {
+		return nil, fmt.Errorf("クライアントシークレットファイルの読み込みに失敗しました: %v", err)
+	}
+
+	// OAuth2設定を生成
+	config, err := google.ConfigFromJSON(credData, calendar.CalendarReadonlyScope)
+	if err != nil {
+		return nil, fmt.Errorf("OAuth2設定の作成に失敗しました: %v", err)
+	}
+
+	// トークンファイルを読み込み
+	token, err := loadTokenFromFile(tokenFile)
+	if err != nil {
+		return nil, fmt.Errorf("トークンファイルの読み込みに失敗しました: %v", err)
+	}
+
+	// HTTPクライアントを作成
+	client := config.Client(context.Background(), token)
+
+	// カレンダーサービスを作成
 	srv, err := calendar.NewService(context.Background(), option.WithHTTPClient(client))
 	if err != nil {
 		return nil, fmt.Errorf("calendar APIサービスの作成に失敗しました: %v", err)
 	}
 
 	return &CalendarService{service: srv}, nil
+}
+
+// トークンファイルからOAuth2トークンを読み込み
+func loadTokenFromFile(file string) (*oauth2.Token, error) {
+	f, err := os.Open(file)
+	if err != nil {
+		return nil, fmt.Errorf("トークンファイルを開けませんでした: %v", err)
+	}
+	defer f.Close()
+
+	token := &oauth2.Token{}
+	err = json.NewDecoder(f).Decode(token)
+	if err != nil {
+		return nil, fmt.Errorf("トークンのデコードに失敗しました: %v", err)
+	}
+
+	return token, nil
+}
+
+// NewCalendarServiceFromTokenString は、token文字列からCalendarServiceを作成します
+func NewCalendarServiceFromTokenString(tokenString, credFile string) (*CalendarService, error) {
+	// クライアントシークレットファイルを読み込み
+	credData, err := ioutil.ReadFile(credFile)
+	if err != nil {
+		return nil, fmt.Errorf("クライアントシークレットファイルの読み込みに失敗しました: %v", err)
+	}
+
+	// OAuth2設定を生成
+	config, err := google.ConfigFromJSON(credData, calendar.CalendarReadonlyScope)
+	if err != nil {
+		return nil, fmt.Errorf("OAuth2設定の作成に失敗しました: %v", err)
+	}
+
+	// token文字列をOAuth2トークンに変換
+	token, err := parseTokenFromString(tokenString)
+	if err != nil {
+		return nil, fmt.Errorf("トークンの解析に失敗しました: %v", err)
+	}
+
+	// HTTPクライアントを作成
+	client := config.Client(context.Background(), token)
+
+	// カレンダーサービスを作成
+	srv, err := calendar.NewService(context.Background(), option.WithHTTPClient(client))
+	if err != nil {
+		return nil, fmt.Errorf("calendar APIサービスの作成に失敗しました: %v", err)
+	}
+
+	return &CalendarService{service: srv}, nil
+}
+
+// parseTokenFromString は、token文字列をOAuth2トークンに変換します
+func parseTokenFromString(tokenString string) (*oauth2.Token, error) {
+	token := &oauth2.Token{}
+	err := json.Unmarshal([]byte(tokenString), token)
+	if err != nil {
+		return nil, fmt.Errorf("トークンのパースに失敗しました: %v", err)
+	}
+	return token, nil
+}
+
+// extractTokenFromHeader は、リクエストヘッダからtokenを抽出します
+func extractTokenFromHeader(c *gin.Context) (string, error) {
+	// Authorizationヘッダーから取得
+	authHeader := c.GetHeader("Authorization")
+	if authHeader != "" {
+		// "Bearer token_data" 形式から token_data 部分を抽出
+		if strings.HasPrefix(authHeader, "Bearer ") {
+			return strings.TrimPrefix(authHeader, "Bearer "), nil
+		}
+		// "Bearer" プレフィックスがない場合はそのまま使用
+		return authHeader, nil
+	}
+
+	// X-Token ヘッダーから取得
+	tokenHeader := c.GetHeader("X-Token")
+	if tokenHeader != "" {
+		return tokenHeader, nil
+	}
+
+	return "", fmt.Errorf("リクエストヘッダにトークンが見つかりません")
 }
 
 // CalendarEvent はカレンダーイベントの情報を格納する構造体です
@@ -116,50 +235,38 @@ func (cs *CalendarService) GetEventsInDateRange(startDate, endDate time.Time, ma
 	return calendarEvents, nil
 }
 
-// DisplayEvents はイベントをコンソールに表示します
-func (cs *CalendarService) DisplayEvents(events []*CalendarEvent) {
-	fmt.Println("=== Googleカレンダーのイベント ===")
-	if len(events) == 0 {
-		fmt.Println("該当するイベントはありません。")
-		return
-	}
+// // DisplayEvents はイベントをコンソールに表示します
+// func (cs *CalendarService) DisplayEvents(events []*CalendarEvent) {
+// 	fmt.Println("=== Googleカレンダーのイベント ===")
+// 	if len(events) == 0 {
+// 		fmt.Println("該当するイベントはありません。")
+// 		return
+// 	}
+// }
 
-	for _, event := range events {
-		fmt.Printf("タイトル: %s\n", event.Summary)
-		fmt.Printf("日時: %s\n", event.StartTime)
-		if event.Description != "" {
-			fmt.Printf("説明: %s\n", event.Description)
-		}
-		if event.Location != "" {
-			fmt.Printf("場所: %s\n", event.Location)
-		}
-		fmt.Println("---")
-	}
-}
-
-// GetGoogleCalendarEvents はHTTPエンドポイント用のカレンダーイベント取得関数です
+// HTTPエンドポイント用のカレンダーイベント取得
 func GetGoogleCalendarEvents(c *gin.Context) {
-	// 認証サービスを初期化
-	authService, err := NewAuthService()
+	const CredFile = "env/client_secret.json"
+
+	// リクエストヘッダからtokenを取得
+	tokenString, err := extractTokenFromHeader(c)
 	if err != nil {
-		log.Printf("認証サービスの初期化に失敗しました: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "認証サービスの初期化エラー"})
+		log.Printf("トークンの取得に失敗しました: %v", err)
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":  "認証トークンが必要です",
+			"detail": "AuthorizationヘッダーまたはX-Tokenヘッダーにトークンを設定してください",
+		})
 		return
 	}
 
-	// 認証されたHTTPクライアントを取得
-	client, err := authService.GetAuthenticatedClient()
-	if err != nil {
-		log.Printf("認証クライアントの取得に失敗しました: %v", err)
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "認証が必要です。/auth/start にアクセスして認証を完了してください。"})
-		return
-	}
-
-	// カレンダーサービスを初期化
-	calendarService, err := NewCalendarService(client)
+	// カレンダーサービスをヘッダーのtokenから初期化
+	calendarService, err := NewCalendarServiceFromTokenString(tokenString, CredFile)
 	if err != nil {
 		log.Printf("カレンダーサービスの初期化に失敗しました: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "カレンダーサービスの初期化エラー"})
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error":  "認証に失敗しました",
+			"detail": "提供されたトークンが無効です",
+		})
 		return
 	}
 
@@ -167,17 +274,18 @@ func GetGoogleCalendarEvents(c *gin.Context) {
 	events, err := calendarService.GetUpcomingEvents()
 	if err != nil {
 		log.Printf("イベントの取得に失敗しました: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "イベント取得エラー"})
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":  "イベント取得エラー",
+			"detail": "Googleカレンダーからのイベント取得に失敗しました",
+		})
 		return
 	}
 
 	// イベントをコンソールに表示
-	calendarService.DisplayEvents(events)
+	// calendarService.DisplayEvents(events)
 
 	// HTTPレスポンスとして返却
 	c.JSON(http.StatusOK, gin.H{
-		"message": "カレンダーイベントを正常に取得しました",
-		"events":  events,
-		"count":   len(events),
+		"events": events,
 	})
 }
