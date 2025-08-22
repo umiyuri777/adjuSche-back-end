@@ -10,7 +10,6 @@ import (
 	"os"
 	"strings"
 	"time"
-
 	"github.com/gin-gonic/gin"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
@@ -22,16 +21,6 @@ import (
 type CalendarService struct {
 	service *calendar.Service
 }
-
-// // 新しいCalendarServiceインスタンスを作成
-// func NewCalendarService(client *http.Client) (*CalendarService, error) {
-// 	srv, err := calendar.NewService(context.Background(), option.WithHTTPClient(client))
-// 	if err != nil {
-// 		return nil, fmt.Errorf("calendar APIサービスの作成に失敗しました: %v", err)
-// 	}
-
-// 	return &CalendarService{service: srv}, nil
-// }
 
 // token.jsonファイルからCalendarServiceを作成
 func NewCalendarServiceFromToken(tokenFile, credFile string) (*CalendarService, error) {
@@ -82,7 +71,7 @@ func loadTokenFromFile(file string) (*oauth2.Token, error) {
 	return token, nil
 }
 
-// NewCalendarServiceFromTokenString は、token文字列からCalendarServiceを作成します
+// token文字列からCalendarServiceを作成します
 func NewCalendarServiceFromTokenString(tokenString, credFile string) (*CalendarService, error) {
 	// クライアントシークレットファイルを読み込み
 	credData, err := ioutil.ReadFile(credFile)
@@ -235,15 +224,6 @@ func (cs *CalendarService) GetEventsInDateRange(startDate, endDate time.Time, ma
 	return calendarEvents, nil
 }
 
-// // DisplayEvents はイベントをコンソールに表示します
-// func (cs *CalendarService) DisplayEvents(events []*CalendarEvent) {
-// 	fmt.Println("=== Googleカレンダーのイベント ===")
-// 	if len(events) == 0 {
-// 		fmt.Println("該当するイベントはありません。")
-// 		return
-// 	}
-// }
-
 // HTTPエンドポイント用のカレンダーイベント取得
 func GetGoogleCalendarEvents(c *gin.Context) {
 	const CredFile = "env/client_secret.json"
@@ -280,9 +260,6 @@ func GetGoogleCalendarEvents(c *gin.Context) {
 		})
 		return
 	}
-
-	// イベントをコンソールに表示
-	// calendarService.DisplayEvents(events)
 
 	// HTTPレスポンスとして返却
 	c.JSON(http.StatusOK, gin.H{
