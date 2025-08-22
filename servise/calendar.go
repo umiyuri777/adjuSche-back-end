@@ -17,12 +17,10 @@ import (
 	"google.golang.org/api/option"
 )
 
-// Googleカレンダーへのアクセスを管理する構造体
 type CalendarService struct {
 	service *calendar.Service
 }
 
-// token文字列からCalendarServiceを作成します
 func NewCalendarServiceFromTokenString(tokenString, credFile string) (*CalendarService, error) {
 	// クライアントシークレットファイルを読み込み
 	credData, err := ioutil.ReadFile(credFile)
@@ -54,7 +52,6 @@ func NewCalendarServiceFromTokenString(tokenString, credFile string) (*CalendarS
 	return &CalendarService{service: srv}, nil
 }
 
-// parseTokenFromString は、token文字列をOAuth2トークンに変換します
 func parseTokenFromString(tokenString string) (*oauth2.Token, error) {
 	token := &oauth2.Token{}
 	err := json.Unmarshal([]byte(tokenString), token)
@@ -64,7 +61,6 @@ func parseTokenFromString(tokenString string) (*oauth2.Token, error) {
 	return token, nil
 }
 
-// extractTokenFromHeader は、リクエストヘッダからtokenを抽出します
 func extractTokenFromHeader(c *gin.Context) (string, error) {
 	// Authorizationヘッダーから取得
 	authHeader := c.GetHeader("Authorization")
@@ -86,7 +82,6 @@ func extractTokenFromHeader(c *gin.Context) (string, error) {
 	return "", fmt.Errorf("リクエストヘッダにトークンが見つかりません")
 }
 
-// CalendarEvent はカレンダーイベントの情報を格納する構造体です
 type CalendarEvent struct {
 	Summary     string `json:"summary"`
 	Description string `json:"description"`
@@ -95,56 +90,12 @@ type CalendarEvent struct {
 	Location    string `json:"location"`
 }
 
-// DateRangeRequest は日付範囲指定でイベントを取得するためのリクエスト構造体です
 type DateRangeRequest struct {
 	StartDate  string `json:"start_date" binding:"required"` // RFC3339形式の開始日時
 	EndDate    string `json:"end_date" binding:"required"`   // RFC3339形式の終了日時
 	MaxResults int64  `json:"max_results,omitempty"`         // 最大取得件数（省略可能、デフォルト50）
 }
 
-// 指定された期間のカレンダーイベントを取得
-func (cs *CalendarService) GetEvents(maxResults int64, timeMin time.Time) ([]*CalendarEvent, error) {
-	t := timeMin.Format(time.RFC3339)
-	events, err := cs.service.Events.List("primary").ShowDeleted(false).
-		SingleEvents(true).TimeMin(t).MaxResults(maxResults).OrderBy("startTime").Do()
-	if err != nil {
-		return nil, fmt.Errorf("イベントの取得に失敗しました: %v", err)
-	}
-
-	var calendarEvents []*CalendarEvent
-	for _, item := range events.Items {
-		event := &CalendarEvent{
-			Summary:     item.Summary,
-			Description: item.Description,
-			Location:    item.Location,
-		}
-
-		// 開始時間の設定
-		if item.Start.DateTime != "" {
-			event.StartTime = item.Start.DateTime
-		} else {
-			event.StartTime = item.Start.Date
-		}
-
-		// 終了時間の設定
-		if item.End.DateTime != "" {
-			event.EndTime = item.End.DateTime
-		} else {
-			event.EndTime = item.End.Date
-		}
-
-		calendarEvents = append(calendarEvents, event)
-	}
-
-	return calendarEvents, nil
-}
-
-// 今後のイベントを取得します（デフォルトで10件）
-func (cs *CalendarService) GetUpcomingEvents() ([]*CalendarEvent, error) {
-	return cs.GetEvents(10, time.Now())
-}
-
-// 指定された日付範囲のイベントを取得します
 func (cs *CalendarService) GetEventsInDateRange(startDate, endDate time.Time, maxResults int64) ([]*CalendarEvent, error) {
 	timeMin := startDate.Format(time.RFC3339)
 	timeMax := endDate.Format(time.RFC3339)
@@ -182,44 +133,82 @@ func (cs *CalendarService) GetEventsInDateRange(startDate, endDate time.Time, ma
 	return calendarEvents, nil
 }
 
-// HTTPエンドポイント用のカレンダーイベント取得
 func GetGoogleCalendarEvents(c *gin.Context) {
 	const CredFile = "env/client_secret.json"
 
-	// リクエストヘッダからtokenを取得
 	tokenString, err := extractTokenFromHeader(c)
 	if err != nil {
 		log.Printf("トークンの取得に失敗しました: %v", err)
 		c.JSON(http.StatusBadRequest, gin.H{
+			"status": "error",
 			"error":  "認証トークンが必要です",
-			"detail": "AuthorizationヘッダーまたはX-Tokenヘッダーにトークンを設定してください",
 		})
 		return
 	}
 
-	// カレンダーサービスをヘッダーのtokenから初期化
 	calendarService, err := NewCalendarServiceFromTokenString(tokenString, CredFile)
 	if err != nil {
 		log.Printf("カレンダーサービスの初期化に失敗しました: %v", err)
 		c.JSON(http.StatusUnauthorized, gin.H{
-			"error":  "認証に失敗しました",
-			"detail": "提供されたトークンが無効です",
+			"status": "error",
+			"error":  "提供されたトークンが無効です",
 		})
 		return
 	}
 
-	// 今後のイベントを取得
-	events, err := calendarService.GetUpcomingEvents()
+	var req DateRangeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		log.Printf("リクエストボディのバインドに失敗しました: %v", err)
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status": "error",
+			"error":  "JSON形式のstart_date, end_dateを指定してください (RFC3339)",
+		})
+		return
+	}
+
+	startTime, err := time.Parse(time.RFC3339, req.StartDate)
+	if err != nil {
+		log.Printf("開始日時の解析に失敗しました: %v", err)
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status": "error",
+			"error":  "start_dateはRFC3339形式で指定してください",
+		})
+		return
+	}
+
+	endTime, err := time.Parse(time.RFC3339, req.EndDate)
+	if err != nil {
+		log.Printf("終了日時の解析に失敗しました: %v", err)
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status": "error",
+			"error":  "end_dateはRFC3339形式で指定してください",
+		})
+		return
+	}
+
+	if endTime.Before(startTime) {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status": "error",
+			"error":  "end_dateはstart_date以降である必要があります",
+		})
+		return
+	}
+
+	maxResults := req.MaxResults
+	if maxResults <= 0 {
+		maxResults = 50
+	}
+
+	events, err := calendarService.GetEventsInDateRange(startTime, endTime, maxResults)
 	if err != nil {
 		log.Printf("イベントの取得に失敗しました: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":  "イベント取得エラー",
-			"detail": "Googleカレンダーからのイベント取得に失敗しました",
+			"status": "error",
+			"error":  "Googleカレンダーからのイベント取得に失敗しました",
 		})
 		return
 	}
 
-	// HTTPレスポンスとして返却
 	c.JSON(http.StatusOK, gin.H{
 		"events": events,
 	})
