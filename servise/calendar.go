@@ -93,7 +93,6 @@ type CalendarEvent struct {
 type DateRangeRequest struct {
 	StartDate  string `json:"start_date" binding:"required"` // RFC3339形式の開始日時
 	EndDate    string `json:"end_date" binding:"required"`   // RFC3339形式の終了日時
-	MaxResults int64  `json:"max_results,omitempty"`         // 最大取得件数（省略可能、デフォルト50）
 }
 
 func (cs *CalendarService) GetEventsInDateRange(startDate, endDate time.Time) ([]*CalendarEvent, error) {
