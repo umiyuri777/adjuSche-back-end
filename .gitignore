@@ -1,7 +1,5 @@
 .DS_Store
 .idea
 .vscode
-client_secret.json
-token.json
 adjuSche-back-end
-.env
+env
