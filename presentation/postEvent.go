@@ -1,6 +1,7 @@
-package servise
+package presentation
 
 import (
+	"adjuSche-back-end/application"
 	"fmt"
 	"net/http"
 	"time"
@@ -8,7 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type EventConditions struct {
+type eventConditions struct {
 	PeriodStart string  `json:"periodStart" binding:"required"`
 	PeriodEnd   string  `json:"periodEnd" binding:"required"`
 	TimeType    *string `json:"timeType,omitempty"`
@@ -21,7 +22,7 @@ type CreateEventRequest struct {
 	Title            string          `json:"title" binding:"required"`
 	Note             string          `json:"note"`
 	ParticipantCount int             `json:"participantCount" binding:"required"`
-	Conditions       EventConditions `json:"conditions" binding:"required"`
+	Conditions       eventConditions `json:"conditions" binding:"required"`
 }
 
 type CreateEventResponse struct {
@@ -39,7 +40,7 @@ func CreateEvent(c *gin.Context) {
 		return
 	}
 
-	//TODO: イベントの作成処理 DBに保存
+	application.HandleEvent()
 
 	// ここでは仕様確定前のため、保存等は行わず招待URLのみを生成
 	inviteURL := fmt.Sprintf("https://example.com/invite/%d", time.Now().UnixNano())
