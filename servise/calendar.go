@@ -7,9 +7,9 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
-	"os"
 	"strings"
 	"time"
+
 	"github.com/gin-gonic/gin"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
@@ -20,55 +20,6 @@ import (
 // Googleカレンダーへのアクセスを管理する構造体
 type CalendarService struct {
 	service *calendar.Service
-}
-
-// token.jsonファイルからCalendarServiceを作成
-func NewCalendarServiceFromToken(tokenFile, credFile string) (*CalendarService, error) {
-	// クライアントシークレットファイルを読み込み
-	credData, err := ioutil.ReadFile(credFile)
-	if err != nil {
-		return nil, fmt.Errorf("クライアントシークレットファイルの読み込みに失敗しました: %v", err)
-	}
-
-	// OAuth2設定を生成
-	config, err := google.ConfigFromJSON(credData, calendar.CalendarReadonlyScope)
-	if err != nil {
-		return nil, fmt.Errorf("OAuth2設定の作成に失敗しました: %v", err)
-	}
-
-	// トークンファイルを読み込み
-	token, err := loadTokenFromFile(tokenFile)
-	if err != nil {
-		return nil, fmt.Errorf("トークンファイルの読み込みに失敗しました: %v", err)
-	}
-
-	// HTTPクライアントを作成
-	client := config.Client(context.Background(), token)
-
-	// カレンダーサービスを作成
-	srv, err := calendar.NewService(context.Background(), option.WithHTTPClient(client))
-	if err != nil {
-		return nil, fmt.Errorf("calendar APIサービスの作成に失敗しました: %v", err)
-	}
-
-	return &CalendarService{service: srv}, nil
-}
-
-// トークンファイルからOAuth2トークンを読み込み
-func loadTokenFromFile(file string) (*oauth2.Token, error) {
-	f, err := os.Open(file)
-	if err != nil {
-		return nil, fmt.Errorf("トークンファイルを開けませんでした: %v", err)
-	}
-	defer f.Close()
-
-	token := &oauth2.Token{}
-	err = json.NewDecoder(f).Decode(token)
-	if err != nil {
-		return nil, fmt.Errorf("トークンのデコードに失敗しました: %v", err)
-	}
-
-	return token, nil
 }
 
 // token文字列からCalendarServiceを作成します
@@ -144,7 +95,14 @@ type CalendarEvent struct {
 	Location    string `json:"location"`
 }
 
-// GetEvents は指定された期間のカレンダーイベントを取得します
+// DateRangeRequest は日付範囲指定でイベントを取得するためのリクエスト構造体です
+type DateRangeRequest struct {
+	StartDate  string `json:"start_date" binding:"required"` // RFC3339形式の開始日時
+	EndDate    string `json:"end_date" binding:"required"`   // RFC3339形式の終了日時
+	MaxResults int64  `json:"max_results,omitempty"`         // 最大取得件数（省略可能、デフォルト50）
+}
+
+// 指定された期間のカレンダーイベントを取得
 func (cs *CalendarService) GetEvents(maxResults int64, timeMin time.Time) ([]*CalendarEvent, error) {
 	t := timeMin.Format(time.RFC3339)
 	events, err := cs.service.Events.List("primary").ShowDeleted(false).
@@ -181,12 +139,12 @@ func (cs *CalendarService) GetEvents(maxResults int64, timeMin time.Time) ([]*Ca
 	return calendarEvents, nil
 }
 
-// GetUpcomingEvents は今後のイベントを取得します（デフォルトで10件）
+// 今後のイベントを取得します（デフォルトで10件）
 func (cs *CalendarService) GetUpcomingEvents() ([]*CalendarEvent, error) {
 	return cs.GetEvents(10, time.Now())
 }
 
-// GetEventsInDateRange は指定された日付範囲のイベントを取得します
+// 指定された日付範囲のイベントを取得します
 func (cs *CalendarService) GetEventsInDateRange(startDate, endDate time.Time, maxResults int64) ([]*CalendarEvent, error) {
 	timeMin := startDate.Format(time.RFC3339)
 	timeMax := endDate.Format(time.RFC3339)
