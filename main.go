@@ -15,6 +15,12 @@ func main() {
 
 	r.POST("/calendar", servise.GetGoogleCalendarEvents)
 
+	r.POST("/line/webhook", servise.HandleLineWebhook)
+
+	r.POST("/event", servise.CreateEvent)
+
+	r.POST("/invite", servise.InviteUser)
+
 	r.GET("/test", func(c *gin.Context) {
 		repo, err := repository.NewSupabaseRepository()
 		if err != nil {
