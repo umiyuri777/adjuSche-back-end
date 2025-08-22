@@ -96,9 +96,12 @@ type DateRangeRequest struct {
 	MaxResults int64  `json:"max_results,omitempty"`         // 最大取得件数（省略可能、デフォルト50）
 }
 
-func (cs *CalendarService) GetEventsInDateRange(startDate, endDate time.Time, maxResults int64) ([]*CalendarEvent, error) {
+func (cs *CalendarService) GetEventsInDateRange(startDate, endDate time.Time) ([]*CalendarEvent, error) {
 	timeMin := startDate.Format(time.RFC3339)
 	timeMax := endDate.Format(time.RFC3339)
+
+	// イベントの最大取得件数を1000件に設定
+	maxResults := int64(1000)
 
 	events, err := cs.service.Events.List("primary").ShowDeleted(false).
 		SingleEvents(true).TimeMin(timeMin).TimeMax(timeMax).
