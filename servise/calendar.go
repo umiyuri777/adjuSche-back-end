@@ -202,7 +202,7 @@ func GetGoogleCalendarEvents(c *gin.Context) {
 		maxResults = 50
 	}
 
-	events, err := calendarService.GetEventsInDateRange(startTime, endTime, maxResults)
+	events, err := calendarService.GetEventsInDateRange(startTime, endTime)
 	if err != nil {
 		log.Printf("イベントの取得に失敗しました: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
