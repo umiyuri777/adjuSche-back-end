@@ -12,20 +12,6 @@ import (
 	"gorm.io/gorm"
 )
 
-type Users struct {
-	ID        int64     `json:"id" gorm:"primaryKey"`
-	GoogleID  string    `json:"google_id"`
-	Name      string    `json:"name"`
-	Email     string    `json:"email"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-}
-
-// TableName を追加して GORM にテーブル名を指定
-func (Users) TableName() string {
-	return "Users" // 既存のテーブル名を指定
-}
-
 // Event は Events テーブルのレコードを表します
 type Events struct {
 	ID               int64          `json:"id" gorm:"primaryKey"`
@@ -70,13 +56,13 @@ type EventParticipant struct {
 
 // Availability は Availabilities テーブルのレコードを表します
 type Availability struct {
-	ID             int64     `json:"id" gorm:"primaryKey"` // int8 から int64 に変更
-	EventID        int64     `json:"event_id"`             // int8 から int64 に変更
-	UserID         int64     `json:"user_id"`              // int8 から int64 に変更
-	AvailableDate  time.Time `json:"available_date"`
-	AvailableStart string    `json:"available_start"`
-	AvailableEnd   string    `json:"available_end"`
-	Source         string    `json:"source"` // "google_calendar" or "manual"
+	ID             int64     `json:"id" gorm:"primaryKey"`        // DB: int8
+	EventID        int64     `json:"event_id"`                    // DB: int8
+	UserID         string    `json:"user_id" gorm:"type:uuid"`    // DB: uuid
+	AvailableDate  string    `json:"available_date"`              // DB: text (YYYY-MM-DD)
+	AvailableStart string    `json:"available_start"`             // DB: text
+	AvailableEnd   string    `json:"available_end"`               // DB: text
+	Sourse         int8      `json:"sourse" gorm:"column:sourse"` // DB: int8 (0: google_calendar, 1: manual) - 実際のカラム名は sourse（タイポ）
 	CreatedAt      time.Time `json:"created_at"`
 }
 
@@ -161,17 +147,17 @@ func connectDB() (*gorm.DB, error) {
 	return db, nil
 }
 
-// CreateUser は新しいユーザーをデータベースに作成します
-func (r *SupabaseRepositoryImpl) CreateUser(ctx context.Context, users *Users) error {
-	// WithContext を使用してコンテキストをGORMの操作に引き継ぎます
-	// Create メソッドでレコードを作成します
-	result := r.db.WithContext(ctx).Create(users)
-	if result.Error != nil {
-		return fmt.Errorf("failed to create user: %w", result.Error)
-	}
-	log.Printf("successfully created user with ID: %d", users.ID)
-	return nil
-}
+// // CreateUser は新しいユーザーをデータベースに作成します
+// func (r *SupabaseRepositoryImpl) CreateUser(ctx context.Context, users *Users) error {
+// 	// WithContext を使用してコンテキストをGORMの操作に引き継ぎます
+// 	// Create メソッドでレコードを作成します
+// 	result := r.db.WithContext(ctx).Create(users)
+// 	if result.Error != nil {
+// 		return fmt.Errorf("failed to create user: %w", result.Error)
+// 	}
+// 	log.Printf("successfully created user with ID: %d", users.ID)
+// 	return nil
+// }
 
 func (r *SupabaseRepositoryImpl) CreateEvent(ctx context.Context, events *Events) error {
 	result := r.db.WithContext(ctx).Create(events)
@@ -223,4 +209,48 @@ func (r *SupabaseRepositoryImpl) CountDistinctAvailabilityUsersByEventID(ctx con
 		return 0, fmt.Errorf("failed to count distinct users in availabilities: %w", err)
 	}
 	return res.Cnt, nil
+}
+
+// // GetUserByGoogleID は google_id から Users レコードを取得する
+// func (r *SupabaseRepositoryImpl) GetUserByGoogleID(ctx context.Context, googleID string) (*Users, error) {
+// 	var u Users
+// 	if err := r.db.WithContext(ctx).Where("google_id = ?", googleID).First(&u).Error; err != nil {
+// 		return nil, fmt.Errorf("failed to get user by google_id: %w", err)
+// 	}
+// 	return &u, nil
+// }
+
+// ReplaceUserAvailabilitiesForEvent は指定 event_id×user_id の既存データを削除し、与えられたレコードで置換する
+func (r *SupabaseRepositoryImpl) ReplaceUserAvailabilitiesForEvent(ctx context.Context, eventID int64, userID string, avs []Availability) error {
+	log.Printf("ReplaceUserAvailabilitiesForEvent: eventID=%d, userID=%s, records=%d", eventID, userID, len(avs))
+
+	tx := r.db.WithContext(ctx).Begin()
+	if tx.Error != nil {
+		return fmt.Errorf("failed to begin transaction: %w", tx.Error)
+	}
+
+	// 既存のレコードを削除（Google Calendar由来のデータ sourse=0 のみを削除）
+	deleteResult := tx.Where("event_id = ? AND user_id = ? AND sourse = ?", eventID, userID, 0).Delete(&Availability{})
+	if deleteResult.Error != nil {
+		_ = tx.Rollback()
+		return fmt.Errorf("failed to delete existing availabilities: %w", deleteResult.Error)
+	}
+	log.Printf("削除されたレコード数: %d", deleteResult.RowsAffected)
+
+	// 新しいレコードを挿入
+	if len(avs) > 0 {
+		createResult := tx.Omit("ID").Create(&avs)
+		if createResult.Error != nil {
+			_ = tx.Rollback()
+			log.Printf("Create エラー: %v", createResult.Error)
+			return fmt.Errorf("failed to create availabilities: %w", createResult.Error)
+		}
+		log.Printf("挿入されたレコード数: %d", createResult.RowsAffected)
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+	log.Printf("トランザクション完了")
+	return nil
 }

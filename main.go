@@ -3,19 +3,13 @@ package main
 import (
 	"adjuSche-back-end/middleware"
 	"adjuSche-back-end/presentation"
-	"adjuSche-back-end/repository"
 	"adjuSche-back-end/servise"
-	"context"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
-	"time"
-
-	"database/sql"
 
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 	"github.com/joho/godotenv"
 	"github.com/line/line-bot-sdk-go/v7/linebot"
 )
@@ -45,44 +39,6 @@ func main() {
 	r.POST("/invite", presentation.InviteUser)
 
 	r.POST("/event/Name", presentation.GetEventNameByID)
-
-	r.GET("/test", func(c *gin.Context) {
-		repo, err := repository.NewSupabaseRepository()
-		if err != nil {
-			c.String(500, "Error connecting to database: %v", err)
-			return
-		}
-
-		ctx := context.Background()
-
-		mockUser := &repository.Users{
-			GoogleID:  "mock-google-id" + fmt.Sprintf("%d", time.Now().UnixNano()),
-			Name:      "Mock User",
-			Email:     "msisisis@gmail.com" + fmt.Sprintf("%d", time.Now().UnixNano()),
-			CreatedAt: time.Now(),
-			UpdatedAt: time.Now(),
-		}
-
-		err = repo.CreateUser(ctx, mockUser)
-		if err != nil {
-			log.Fatalf("Failed to create user: %v", err)
-		}
-
-		//Event作成
-		mockEvent := &repository.Events{
-			HostUserID:       uuid.NewString(),
-			Title:            "Mock Event",
-			Note:             sql.NullString{String: "This is a mock event note.", Valid: true},
-			ParticipantCount: 1,
-			Status:           0,
-			CreatedAt:        time.Now(),
-			UpdatedAt:        time.Now(),
-		}
-		err = repo.CreateEvent(ctx, mockEvent)
-		if err != nil {
-			log.Fatalf("Failed to create user: %v", err)
-		}
-	})
 
 	log.Println("サーバーを起動しています... http://localhost:8080")
 	r.Run(":8080")
