@@ -16,8 +16,6 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/line/line-bot-sdk-go/v7/linebot"
 )
-
-
 func main() {
 	if os.Getenv("RENDER") == "" {
 		err := godotenv.Load("./env/.env")
