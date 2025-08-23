@@ -6,7 +6,6 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 )
 
 type eventConditions struct {
@@ -18,6 +17,7 @@ type eventConditions struct {
 }
 
 type CreateEventRequest struct {
+	HostUserID       string          `json:"hostUserID" binding:"required"`
 	Title            string          `json:"title" binding:"required"`
 	Memo             string          `json:"memo"`
 	ParticipantCount int             `json:"participantCount" binding:"required"`
@@ -39,11 +39,8 @@ func CreateEvent(c *gin.Context) {
 		return
 	}
 
-	// TODO: Google 認証からユーザーIDを取得するまで UUID を暫定採用
-	hostUserID := uuid.NewString()
-
 	id, err := application.CreateEventAndCondition(c.Request.Context(), application.CreateEventInput{
-		HostUserID:       hostUserID,
+		HostUserID:       req.HostUserID,
 		Title:            req.Title,
 		Memo:             req.Memo,
 		ParticipantCount: req.ParticipantCount,

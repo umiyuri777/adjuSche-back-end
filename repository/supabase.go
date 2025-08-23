@@ -44,7 +44,7 @@ func (Events) TableName() string {
 
 // EventCondition は EventConditions テーブルのレコードを表します
 type EventCondition struct {
-	ID          int64          `json:"id" gorm:"primaryKey"`
+	ID          int64          `json:"id" gorm:"primaryKey;autoIncrement"`
 	EventID     int64          `json:"event_id"`
 	PeriodStart time.Time      `json:"period_start"`
 	PeriodEnd   time.Time      `json:"period_end"`
@@ -182,8 +182,9 @@ func (r *SupabaseRepositoryImpl) CreateEvent(ctx context.Context, events *Events
 	return nil
 }
 
+// CreateEventCondition は新しいイベント条件を作成します
 func (r *SupabaseRepositoryImpl) CreateEventCondition(ctx context.Context, cond *EventCondition) error {
-	result := r.db.WithContext(ctx).Create(cond)
+	result := r.db.WithContext(ctx).Omit("ID").Create(cond)
 	if result.Error != nil {
 		return fmt.Errorf("failed to create event condition: %w", result.Error)
 	}
