@@ -44,6 +44,8 @@ func main() {
 
 	r.POST("/invite", presentation.InviteUser)
 
+	r.POST("/event/Name", presentation.GetEventNameByID)
+
 	r.GET("/test", func(c *gin.Context) {
 		repo, err := repository.NewSupabaseRepository()
 		if err != nil {
