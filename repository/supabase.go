@@ -12,7 +12,7 @@ import (
 	"gorm.io/gorm"
 )
 
-type User struct {
+type Users struct {
 	ID        int64     `json:"id" gorm:"primaryKey"`
 	GoogleID  string    `json:"google_id"`
 	Name      string    `json:"name"`
@@ -22,12 +22,12 @@ type User struct {
 }
 
 // TableName を追加して GORM にテーブル名を指定
-func (User) TableName() string {
+func (Users) TableName() string {
 	return "Users" // 既存のテーブル名を指定
 }
 
 // Event は Events テーブルのレコードを表します
-type Event struct {
+type Events struct {
 	ID               int64          `json:"id" gorm:"primaryKey"`
 	HostUserID       int64          `json:"host_user_id"`
 	Title            string         `json:"title"`
@@ -36,6 +36,10 @@ type Event struct {
 	Status           int64          `json:"status"`
 	CreatedAt        time.Time      `json:"created_at"`
 	UpdatedAt        time.Time      `json:"updated_at"`
+}
+
+func (Events) TableName() string {
+	return "Events"
 }
 
 // EventCondition は EventConditions テーブルのレコードを表します
@@ -150,13 +154,22 @@ func connectDB() (*gorm.DB, error) {
 }
 
 // CreateUser は新しいユーザーをデータベースに作成します
-func (r *SupabaseRepositoryImpl) CreateUser(ctx context.Context, user *User) error {
+func (r *SupabaseRepositoryImpl) CreateUser(ctx context.Context, users *Users) error {
 	// WithContext を使用してコンテキストをGORMの操作に引き継ぎます
 	// Create メソッドでレコードを作成します
-	result := r.db.WithContext(ctx).Create(user)
+	result := r.db.WithContext(ctx).Create(users)
 	if result.Error != nil {
 		return fmt.Errorf("failed to create user: %w", result.Error)
 	}
-	log.Printf("successfully created user with ID: %d", user.ID)
+	log.Printf("successfully created user with ID: %d", users.ID)
+	return nil
+}
+
+func (r *SupabaseRepositoryImpl) CreateEvent(ctx context.Context, events *Events)  error {
+	result := r.db.WithContext(ctx).Create(events)
+	if result.Error != nil {
+		return fmt.Errorf("failed to create event: %w", result.Error)
+	}
+	log.Printf("successfully created event with ID: %d", events.ID)
 	return nil
 }

@@ -12,6 +12,8 @@ import (
 	"os"
 	"time"
 
+	"database/sql"
+
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 	"github.com/line/line-bot-sdk-go/v7/linebot"
@@ -47,7 +49,7 @@ func main() {
 
 		ctx := context.Background()
 
-		mockUser := &repository.User{
+		mockUser := &repository.Users{
 			GoogleID:  "mock-google-id" + fmt.Sprintf("%d", time.Now().UnixNano()),
 			Name:      "Mock User",
 			Email:     "msisisis@gmail.com" + fmt.Sprintf("%d", time.Now().UnixNano()),
@@ -56,6 +58,21 @@ func main() {
 		}
 
 		err = repo.CreateUser(ctx, mockUser)
+		if err != nil {
+			log.Fatalf("Failed to create user: %v", err)
+		}
+
+		//Event作成
+		mockEvent := &repository.Events{
+			HostUserID: mockUser.ID,
+			Title:      "Mock Event",
+			Note:   sql.NullString{String: "This is a mock event note.", Valid: true},
+			ParticipantCount: 1,
+			Status:     0,
+			CreatedAt:  time.Now(),
+			UpdatedAt:  time.Now(),
+		}
+		err = repo.CreateEvent(ctx, mockEvent)
 		if err != nil {
 			log.Fatalf("Failed to create user: %v", err)
 		}
