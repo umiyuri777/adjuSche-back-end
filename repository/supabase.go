@@ -8,9 +8,11 @@ import (
 	"os"
 	"time"
 
-	"github.com/joho/godotenv"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+
+	"github.com/jackc/pgx/v5"
+
 )
 
 type User struct {
@@ -108,14 +110,8 @@ func NewSupabaseRepository() (*SupabaseRepositoryImpl, error) {
 	return &SupabaseRepositoryImpl{db: db}, nil
 }
 
-// connectDB は GORM を使用してデータベースに接続します
-func connectDB() (*gorm.DB, error) {
-	if os.Getenv("RENDER") == "" {
-		err := godotenv.Load("./env/.env")
-		if err != nil {
-			log.Fatalf("環境変数の読み込みに失敗しました: %v\n", err)
-		}
-	}
+
+func connectDB() (*pgx.Conn, error) {
 
 	host := os.Getenv("SUPABASE_HOST")
 	port := os.Getenv("SUPABASE_PORT")

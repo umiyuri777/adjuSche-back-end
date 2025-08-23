@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -136,7 +137,7 @@ func (cs *CalendarService) GetEventsInDateRange(startDate, endDate time.Time) ([
 }
 
 func GetGoogleCalendarEvents(c *gin.Context) {
-	const CredFile = "env/client_secret.json"
+	const CredFile = "client_secret.json"
 
 	tokenString, err := extractTokenFromHeader(c)
 	if err != nil {
@@ -196,7 +197,7 @@ func GetGoogleCalendarEvents(c *gin.Context) {
 		return
 	}
 
-	events, err := calendarService.GetEventsInDateRange(startTime, endTime)
+	events, err := calendarService.GetFreeIntervalsInRange(startTime, endTime)
 	if err != nil {
 		log.Printf("イベントの取得に失敗しました: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -209,4 +210,108 @@ func GetGoogleCalendarEvents(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"events": events,
 	})
+}
+
+// TimeInterval は開始時刻と終了時刻からなる時間区間を表す
+type TimeInterval struct {
+	Start time.Time
+	End   time.Time
+}
+
+// GetFreeIntervalsInRange は、指定範囲 [startDate, endDate) の中で予定が入っていない全ての時間帯を返す
+func (cs *CalendarService) GetFreeIntervalsInRange(startDate, endDate time.Time) ([]TimeInterval, error) {
+	if endDate.Before(startDate) || endDate.Equal(startDate) {
+		return []TimeInterval{}, nil
+	}
+
+	events, err := cs.GetEventsInDateRange(startDate, endDate)
+	if err != nil {
+		return nil, err
+	}
+
+	busyIntervals := make([]TimeInterval, 0, len(events))
+	loc := startDate.Location()
+
+	for _, e := range events {
+		s, serr := parseRFC3339OrDate(e.StartTime, loc)
+		if serr != nil {
+			continue
+		}
+		t, terr := parseRFC3339OrDate(e.EndTime, loc)
+		if terr != nil {
+			continue
+		}
+
+		// 範囲外へはみ出した予定はクランプ
+		if t.Before(startDate) || s.After(endDate) {
+			continue
+		}
+
+		if s.Before(startDate) {
+			s = startDate
+		}
+		if t.After(endDate) {
+			t = endDate
+		}
+		if !t.After(s) {
+			continue
+		}
+		busyIntervals = append(busyIntervals, TimeInterval{Start: s, End: t})
+	}
+
+	if len(busyIntervals) == 0 {
+		return []TimeInterval{{Start: startDate, End: endDate}}, nil
+	}
+
+	mergedBusy := mergeIntervals(busyIntervals)
+
+	// ビジーの補集合を生成
+	freeIntervals := make([]TimeInterval, 0, len(mergedBusy)+1)
+	cursor := startDate
+	for _, b := range mergedBusy {
+		if b.Start.After(cursor) {
+			freeIntervals = append(freeIntervals, TimeInterval{Start: cursor, End: b.Start})
+		}
+		if b.End.After(cursor) {
+			cursor = b.End
+		}
+	}
+	if cursor.Before(endDate) {
+		freeIntervals = append(freeIntervals, TimeInterval{Start: cursor, End: endDate})
+	}
+	return freeIntervals, nil
+}
+
+// parseRFC3339OrDate は RFC3339 形式または日付のみ(2006-01-02)を解釈する
+func parseRFC3339OrDate(value string, loc *time.Location) (time.Time, error) {
+	if strings.Contains(value, "T") {
+		// RFC3339 (タイムゾーン付き)
+		return time.Parse(time.RFC3339, value)
+	}
+	// 日付のみはそのロケーションの 00:00 として扱う
+	return time.ParseInLocation("2006-01-02", value, loc)
+}
+
+// mergeIntervals は重なり合う/接する区間を統合する
+func mergeIntervals(intervals []TimeInterval) []TimeInterval {
+	if len(intervals) <= 1 {
+		return intervals
+	}
+	sort.Slice(intervals, func(i, j int) bool { return intervals[i].Start.Before(intervals[j].Start) })
+	merged := make([]TimeInterval, 0, len(intervals))
+	current := intervals[0]
+	for i := 1; i < len(intervals); i++ {
+		next := intervals[i]
+		// 接している (current.End == next.Start) も統合対象にする
+		if !next.Start.After(current.End) {
+			if next.End.After(current.End) {
+				current.End = next.End
+			}
+			continue
+		}
+		merged = append(merged, current)
+		current = next
+	}
+	merged = append(merged, current)
+	return merged
 }
