@@ -4,6 +4,7 @@ import (
 	"adjuSche-back-end/presentation"
 	"adjuSche-back-end/repository"
 	"adjuSche-back-end/servise"
+	"context"
 	"fmt"
 	"log"
 	"net/http"
@@ -33,12 +34,26 @@ func main() {
 			c.String(500, "Error connecting to database: %v", err)
 			return
 		}
-		repo.InsertUser()
+
+		ctx := context.Background()
+
+		mockUser := &repository.User{
+			ID:        1,
+			GoogleID:  "mock-google-id",
+			Name:      "Mock User",
+			Email:     "mokcuser@example.com",
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+		}
+
+		err = repo.CreateUser(ctx, mockUser)
+		if err != nil {
+			log.Fatalf("Failed to create user: %v", err)
+		}
 	})
 	log.Println("サーバーを起動しています... http://localhost:8080")
 	r.Run(":8080")
 }
-
 
 type LineWebhookRequest struct {
 	Message string `json:"message" binding:"required"`
