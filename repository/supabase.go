@@ -7,7 +7,6 @@ import (
 	"os"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/joho/godotenv"
 )
 
 type SupabaseRepositoryImpl struct {
@@ -23,12 +22,6 @@ func NewSupabaseRepository() (*SupabaseRepositoryImpl, error) {
 }
 
 func connectDB() (*pgx.Conn, error) {
-	if os.Getenv("RENDER") == "" {
-		err := godotenv.Load("./env/.env")
-		if err != nil {
-			log.Fatalf("環境変数の読み込みに失敗しました: %v\n", err)
-		}
-	}
 
 	host := os.Getenv("SUPABASE_HOST")
 	port := os.Getenv("SUPABASE_PORT")

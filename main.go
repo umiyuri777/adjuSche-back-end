@@ -7,12 +7,21 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/joho/godotenv"
 )
 
 func main() {
+	if os.Getenv("RENDER") == "" {
+		err := godotenv.Load("./env/.env")
+		if err != nil {
+			log.Fatalf("環境変数の読み込みに失敗しました: %v\n", err)
+		}
+	}
+
 	r := gin.Default()
 
 	r.GET("/hello", func(c *gin.Context) {
