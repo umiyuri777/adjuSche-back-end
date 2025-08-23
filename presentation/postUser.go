@@ -2,14 +2,17 @@ package presentation
 
 import (
 	"adjuSche-back-end/application"
+	"adjuSche-back-end/servise"
 	"net/http"
+	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
 
 type InviteUserRequest struct {
-	UserID  string `json:"userId" binding:"required"`
-	EventID string `json:"eventId" binding:"required"`
+	UserID  string `json:"userId"`
+	EventID string `json:"eventId"`
 }
 
 type possibleDate struct {
@@ -31,6 +34,8 @@ type InviteUserResponse struct {
 }
 
 func InviteUser(c *gin.Context) {
+	const CredFile = "client_secret.json"
+
 	var req InviteUserRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -40,20 +45,46 @@ func InviteUser(c *gin.Context) {
 		return
 	}
 
-	application.InviteUser()
-
-	resp := InviteUserResponse{
-		EventName:   "サンプルイベント",
-		VotedCount:  5,
-		Memo:        "メモの例",
-		PeriodStart: "2025-08-01T00:00:00Z",
-		PeriodEnd:   "2025-08-31T23:59:59Z",
-		DurationMin: 60,
-		PossibleDate: []possibleDate{
-			{ID: 1, Date: "2025-08-10", PeriodStart: "2025-08-10T09:00:00Z", PeriodEnd: "2025-08-10T18:00:00Z", ParticipateMemberNum: 3},
-			{ID: 2, PeriodStart: "2025-08-15T13:00:00Z", PeriodEnd: "2025-08-15T17:00:00Z", ParticipateMemberNum: 2},
-		},
+	tokenString, err := servise.ExtractTokenFromHeader(c)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status": "error",
+			"error":  "認証トークンが必要です",
+		})
+		return
 	}
 
-	c.JSON(http.StatusOK, resp)
+	// eventId を int64 へ
+	eventID, err := strconv.ParseInt(req.EventID, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "error": "eventId は数値で指定してください"})
+		return
+	}
+
+	summary, slots, err := application.BuildInviteResponse(c.Request.Context(), eventID, tokenString, CredFile)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "error": err.Error()})
+		return
+	}
+
+	// 整形
+	res := InviteUserResponse{
+		EventName:   summary.EventName,
+		VotedCount:  summary.VotedCount,
+		Memo:        summary.Memo,
+		PeriodStart: summary.PeriodStart.Format(time.RFC3339),
+		PeriodEnd:   summary.PeriodEnd.Format(time.RFC3339),
+		DurationMin: summary.DurationMin,
+	}
+	for _, s := range slots {
+		res.PossibleDate = append(res.PossibleDate, possibleDate{
+			ID:                   s.ID,
+			Date:                 s.Date,
+			PeriodStart:          s.PeriodStart.Format(time.RFC3339),
+			PeriodEnd:            s.PeriodEnd.Format(time.RFC3339),
+			ParticipateMemberNum: s.ParticipateMemberNum,
+		})
+	}
+
+	c.JSON(http.StatusOK, res)
 }
