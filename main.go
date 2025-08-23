@@ -15,9 +15,11 @@ import (
 	"database/sql"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/joho/godotenv"
 	"github.com/line/line-bot-sdk-go/v7/linebot"
 )
+
 func main() {
 	if os.Getenv("RENDER") == "" {
 		err := godotenv.Load("./env/.env")
@@ -27,6 +29,8 @@ func main() {
 	}
 
 	r := gin.Default()
+
+	r.Use(middleware.CorsMiddleware())
 
 	r.GET("/hello", func(c *gin.Context) {
 		c.String(200, "Hello, World!")
@@ -64,23 +68,19 @@ func main() {
 
 		//Event作成
 		mockEvent := &repository.Events{
-			HostUserID: mockUser.ID,
-			Title:      "Mock Event",
-			Note:   sql.NullString{String: "This is a mock event note.", Valid: true},
+			HostUserID:       uuid.NewString(),
+			Title:            "Mock Event",
+			Note:             sql.NullString{String: "This is a mock event note.", Valid: true},
 			ParticipantCount: 1,
-			Status:     0,
-			CreatedAt:  time.Now(),
-			UpdatedAt:  time.Now(),
+			Status:           0,
+			CreatedAt:        time.Now(),
+			UpdatedAt:        time.Now(),
 		}
 		err = repo.CreateEvent(ctx, mockEvent)
 		if err != nil {
 			log.Fatalf("Failed to create user: %v", err)
 		}
 	})
-
-	allowOrigins := []string{"*"} // TODO: 本番環境では"*"を使用しない
-
-	r.Use(middleware.CorsMiddleware(allowOrigins))
 
 	log.Println("サーバーを起動しています... http://localhost:8080")
 	r.Run(":8080")

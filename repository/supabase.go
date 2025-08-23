@@ -29,7 +29,7 @@ func (Users) TableName() string {
 // Event は Events テーブルのレコードを表します
 type Events struct {
 	ID               int64          `json:"id" gorm:"primaryKey"`
-	HostUserID       int64          `json:"host_user_id"`
+	HostUserID       string         `json:"host_user_id" gorm:"type:uuid"`
 	Title            string         `json:"title"`
 	Note             sql.NullString `json:"note"`
 	ParticipantCount int64          `json:"participant_count"`
@@ -44,7 +44,7 @@ func (Events) TableName() string {
 
 // EventCondition は EventConditions テーブルのレコードを表します
 type EventCondition struct {
-	ID          int64          `json:"id" gorm:"primaryKey"`
+	ID          int64          `json:"id" gorm:"primaryKey;autoIncrement"`
 	EventID     int64          `json:"event_id"`
 	PeriodStart time.Time      `json:"period_start"`
 	PeriodEnd   time.Time      `json:"period_end"`
@@ -53,6 +53,10 @@ type EventCondition struct {
 	TimeEnd     sql.NullString `json:"time_end"`
 	DurationMin int            `json:"duration_min"`
 	CreatedAt   time.Time      `json:"created_at"`
+}
+
+func (EventCondition) TableName() string {
+	return "EventConditions"
 }
 
 // EventParticipant は EventParticipants テーブルのレコードを表します
@@ -74,6 +78,10 @@ type Availability struct {
 	AvailableEnd   string    `json:"available_end"`
 	Source         string    `json:"source"` // "google_calendar" or "manual"
 	CreatedAt      time.Time `json:"created_at"`
+}
+
+func (Availability) TableName() string {
+	return "Availabilities"
 }
 
 // Link は Links テーブルのレコードを表します
@@ -165,11 +173,54 @@ func (r *SupabaseRepositoryImpl) CreateUser(ctx context.Context, users *Users) e
 	return nil
 }
 
-func (r *SupabaseRepositoryImpl) CreateEvent(ctx context.Context, events *Events)  error {
+func (r *SupabaseRepositoryImpl) CreateEvent(ctx context.Context, events *Events) error {
 	result := r.db.WithContext(ctx).Create(events)
 	if result.Error != nil {
 		return fmt.Errorf("failed to create event: %w", result.Error)
 	}
 	log.Printf("successfully created event with ID: %d", events.ID)
 	return nil
+}
+
+// CreateEventCondition は新しいイベント条件を作成します
+func (r *SupabaseRepositoryImpl) CreateEventCondition(ctx context.Context, cond *EventCondition) error {
+	result := r.db.WithContext(ctx).Omit("ID").Create(cond)
+	if result.Error != nil {
+		return fmt.Errorf("failed to create event condition: %w", result.Error)
+	}
+	log.Printf("successfully created event condition with ID: %d (event_id=%d)", cond.ID, cond.EventID)
+	return nil
+}
+
+func (r *SupabaseRepositoryImpl) GetEventByID(ctx context.Context, eventID int64) (*Events, error) {
+	var e Events
+	if err := r.db.WithContext(ctx).First(&e, eventID).Error; err != nil {
+		return nil, fmt.Errorf("failed to get event by id: %w", err)
+	}
+	return &e, nil
+}
+
+func (r *SupabaseRepositoryImpl) GetEventConditionByEventID(ctx context.Context, eventID int64) (*EventCondition, error) {
+	var ec EventCondition
+	if err := r.db.WithContext(ctx).Where("event_id = ?", eventID).Order("id DESC").First(&ec).Error; err != nil {
+		return nil, fmt.Errorf("failed to get event condition by event_id: %w", err)
+	}
+	return &ec, nil
+}
+
+func (r *SupabaseRepositoryImpl) ListAvailabilitiesByEventID(ctx context.Context, eventID int64) ([]Availability, error) {
+	var avs []Availability
+	if err := r.db.WithContext(ctx).Where("event_id = ?", eventID).Find(&avs).Error; err != nil {
+		return nil, fmt.Errorf("failed to list availabilities by event_id: %w", err)
+	}
+	return avs, nil
+}
+
+func (r *SupabaseRepositoryImpl) CountDistinctAvailabilityUsersByEventID(ctx context.Context, eventID int64) (int, error) {
+	type Result struct{ Cnt int }
+	var res Result
+	if err := r.db.WithContext(ctx).Raw("SELECT COUNT(DISTINCT user_id) AS cnt FROM \"Availabilities\" WHERE event_id = ?", eventID).Scan(&res).Error; err != nil {
+		return 0, fmt.Errorf("failed to count distinct users in availabilities: %w", err)
+	}
+	return res.Cnt, nil
 }

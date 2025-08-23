@@ -54,15 +54,29 @@ func NewCalendarServiceFromTokenString(tokenString, credFile string) (*CalendarS
 }
 
 func parseTokenFromString(tokenString string) (*oauth2.Token, error) {
-	token := &oauth2.Token{}
-	err := json.Unmarshal([]byte(tokenString), token)
-	if err != nil {
-		return nil, fmt.Errorf("トークンのパースに失敗しました: %v", err)
+	// ヘッダ値が JSON の場合は oauth2.Token としてパースし、
+	// それ以外（生のアクセストークン文字列）の場合は Bearer として扱う
+	s := strings.TrimSpace(tokenString)
+	if s == "" {
+		return nil, fmt.Errorf("トークン文字列が空です")
 	}
-	return token, nil
+
+	if strings.HasPrefix(s, "{") {
+		token := &oauth2.Token{}
+		if err := json.Unmarshal([]byte(s), token); err != nil {
+			return nil, fmt.Errorf("トークンのパースに失敗しました: %v", err)
+		}
+		return token, nil
+	}
+
+	// 生のアクセストークンとして解釈
+	return &oauth2.Token{
+		AccessToken: s,
+		TokenType:   "Bearer",
+	}, nil
 }
 
-func extractTokenFromHeader(c *gin.Context) (string, error) {
+func ExtractTokenFromHeader(c *gin.Context) (string, error) {
 	// Authorizationヘッダーから取得
 	authHeader := c.GetHeader("Authorization")
 	if authHeader != "" {
@@ -140,7 +154,7 @@ func (cs *CalendarService) GetEventsInDateRange(startDate, endDate time.Time) ([
 func GetGoogleCalendarEvents(c *gin.Context) {
 	const CredFile = "client_secret.json"
 
-	tokenString, err := extractTokenFromHeader(c)
+	tokenString, err := ExtractTokenFromHeader(c)
 	if err != nil {
 		log.Printf("トークンの取得に失敗しました: %v", err)
 		c.JSON(http.StatusBadRequest, gin.H{
