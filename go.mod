@@ -6,6 +6,7 @@ require (
 	github.com/gin-gonic/gin v1.10.0
 	github.com/jackc/pgx/v5 v5.7.5
 	github.com/joho/godotenv v1.5.1
+	github.com/line/line-bot-sdk-go/v7 v7.21.0
 	golang.org/x/oauth2 v0.30.0
 	google.golang.org/api v0.248.0
 )
