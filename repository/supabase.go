@@ -136,7 +136,10 @@ func connectDB() (*gorm.DB, error) {
 	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=require TimeZone=Asia/Tokyo", host, user, password, dbName, port)
 
 	// GORM を使って PostgreSQL に接続
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	db, err := gorm.Open(postgres.New(postgres.Config{
+		DSN:                  dsn,
+		PreferSimpleProtocol: true, // ← プリペアドステートメントを使わない
+	}), &gorm.Config{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to database with gorm: %w", err)
 	}

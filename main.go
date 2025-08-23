@@ -38,9 +38,9 @@ func main() {
 		ctx := context.Background()
 
 		mockUser := &repository.User{
-			GoogleID:  "mock-google-id",
+			GoogleID:  "mock-google-id" + fmt.Sprintf("%d", time.Now().UnixNano()),
 			Name:      "Mock User",
-			Email:     "mockuser@example.com",
+			Email:     "msisisis@gmail.com" + fmt.Sprintf("%d", time.Now().UnixNano()),
 			CreatedAt: time.Now(),
 			UpdatedAt: time.Now(),
 		}
