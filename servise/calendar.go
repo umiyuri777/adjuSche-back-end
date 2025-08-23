@@ -92,8 +92,9 @@ type CalendarEvent struct {
 }
 
 type DateRangeRequest struct {
-	StartDate string `json:"start_date" binding:"required"` // RFC3339形式の開始日時
-	EndDate   string `json:"end_date" binding:"required"`   // RFC3339形式の終了日時
+	StartDate   string `json:"start_date" binding:"required"` // RFC3339形式の開始日時
+	EndDate     string `json:"end_date" binding:"required"`   // RFC3339形式の終了日時
+	DurationMin int    `json:"durationMin"`                   // 最小継続時間(分)
 }
 
 func (cs *CalendarService) GetEventsInDateRange(startDate, endDate time.Time) ([]*CalendarEvent, error) {
@@ -197,7 +198,15 @@ func GetGoogleCalendarEvents(c *gin.Context) {
 		return
 	}
 
-	events, err := calendarService.GetFreeIntervalsInRange(startTime, endTime)
+	if req.DurationMin < 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status": "error",
+			"error":  "durationMinは0以上で指定してください",
+		})
+		return
+	}
+
+	events, err := calendarService.GetFreeIntervalsInRange(startTime, endTime, req.DurationMin)
 	if err != nil {
 		log.Printf("イベントの取得に失敗しました: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -219,7 +228,7 @@ type TimeInterval struct {
 }
 
 // GetFreeIntervalsInRange は、指定範囲 [startDate, endDate) の中で予定が入っていない全ての時間帯を返す
-func (cs *CalendarService) GetFreeIntervalsInRange(startDate, endDate time.Time) ([]TimeInterval, error) {
+func (cs *CalendarService) GetFreeIntervalsInRange(startDate, endDate time.Time, durationMin int) ([]TimeInterval, error) {
 	if endDate.Before(startDate) || endDate.Equal(startDate) {
 		return []TimeInterval{}, nil
 	}
@@ -260,7 +269,15 @@ func (cs *CalendarService) GetFreeIntervalsInRange(startDate, endDate time.Time)
 	}
 
 	if len(busyIntervals) == 0 {
-		return []TimeInterval{{Start: startDate, End: endDate}}, nil
+		// 範囲全体が空きの場合でも最小継続時間でフィルタする
+		if durationMin <= 0 {
+			return []TimeInterval{{Start: startDate, End: endDate}}, nil
+		}
+		minDur := time.Duration(durationMin) * time.Minute
+		if endDate.Sub(startDate) >= minDur {
+			return []TimeInterval{{Start: startDate, End: endDate}}, nil
+		}
+		return []TimeInterval{}, nil
 	}
 
 	mergedBusy := mergeIntervals(busyIntervals)
@@ -278,6 +295,18 @@ func (cs *CalendarService) GetFreeIntervalsInRange(startDate, endDate time.Time)
 	}
 	if cursor.Before(endDate) {
 		freeIntervals = append(freeIntervals, TimeInterval{Start: cursor, End: endDate})
+	}
+
+	// 最小継続時間でフィルタ
+	if durationMin > 0 {
+		minDur := time.Duration(durationMin) * time.Minute
+		filtered := make([]TimeInterval, 0, len(freeIntervals))
+		for _, iv := range freeIntervals {
+			if iv.End.Sub(iv.Start) >= minDur {
+				filtered = append(filtered, iv)
+			}
+		}
+		return filtered, nil
 	}
 	return freeIntervals, nil
 }
