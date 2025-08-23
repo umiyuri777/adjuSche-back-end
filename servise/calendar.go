@@ -268,16 +268,10 @@ func (cs *CalendarService) GetFreeIntervalsInRange(startDate, endDate time.Time,
 		busyIntervals = append(busyIntervals, TimeInterval{Start: s, End: t})
 	}
 
+	// ビジーの区間がない場合は、範囲全体を空き区間として返す
 	if len(busyIntervals) == 0 {
-		// 範囲全体が空きの場合でも最小継続時間でフィルタする
-		if durationMin <= 0 {
-			return []TimeInterval{{Start: startDate, End: endDate}}, nil
-		}
-		minDur := time.Duration(durationMin) * time.Minute
-		if endDate.Sub(startDate) >= minDur {
-			return []TimeInterval{{Start: startDate, End: endDate}}, nil
-		}
-		return []TimeInterval{}, nil
+		free := []TimeInterval{{Start: startDate, End: endDate}}
+		return filterIntervalsByDuration(free, durationMin), nil
 	}
 
 	mergedBusy := mergeIntervals(busyIntervals)
@@ -298,17 +292,23 @@ func (cs *CalendarService) GetFreeIntervalsInRange(startDate, endDate time.Time,
 	}
 
 	// 最小継続時間でフィルタ
-	if durationMin > 0 {
-		minDur := time.Duration(durationMin) * time.Minute
-		filtered := make([]TimeInterval, 0, len(freeIntervals))
-		for _, iv := range freeIntervals {
-			if iv.End.Sub(iv.Start) >= minDur {
-				filtered = append(filtered, iv)
-			}
-		}
-		return filtered, nil
-	}
+	freeIntervals = filterIntervalsByDuration(freeIntervals, durationMin)
 	return freeIntervals, nil
+}
+
+// filterIntervalsByDuration は最小継続時間(分)で区間をフィルタする
+func filterIntervalsByDuration(intervals []TimeInterval, durationMin int) []TimeInterval {
+	if durationMin <= 0 {
+		return intervals
+	}
+	minDur := time.Duration(durationMin) * time.Minute
+	filtered := make([]TimeInterval, 0, len(intervals))
+	for _, interval := range intervals {
+		if interval.End.Sub(interval.Start) >= minDur {
+			filtered = append(filtered, interval)
+		}
+	}
+	return filtered
 }
 
 // parseRFC3339OrDate は RFC3339 形式または日付のみ(2006-01-02)を解釈する
