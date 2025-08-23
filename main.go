@@ -132,5 +132,5 @@ func getResMessage(message string) string {
 
 func getFormURL() string {
 	// TODO: LINEのメッセージ解析やフォーム生成ロジックの実装
-	return "https://amazon.com"
+	return "https://adju-sche-front-end.vercel.app/admin/create"
 }
