@@ -1,6 +1,7 @@
 package main
 
 import (
+	"adjuSche-back-end/middleware"
 	"adjuSche-back-end/presentation"
 	"adjuSche-back-end/repository"
 	"adjuSche-back-end/servise"
@@ -15,7 +16,6 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/line/line-bot-sdk-go/v7/linebot"
 )
-
 func main() {
 	if os.Getenv("RENDER") == "" {
 		err := godotenv.Load("./env/.env")
@@ -60,6 +60,11 @@ func main() {
 			log.Fatalf("Failed to create user: %v", err)
 		}
 	})
+
+	allowOrigins := []string{"*"} // TODO: 本番環境では"*"を使用しない
+
+	r.Use(middleware.CorsMiddleware(allowOrigins))
+
 	log.Println("サーバーを起動しています... http://localhost:8080")
 	r.Run(":8080")
 }
