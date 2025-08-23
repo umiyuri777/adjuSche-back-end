@@ -48,12 +48,6 @@ func main() {
 	r.Run(":8080")
 }
 
-
-type LineWebhookResponse struct {
-	Status  string `json:"status"`
-	FormURL string `json:"form_url"`
-}
-
 func handleLineWebhook(c *gin.Context) {
 	bot, err := linebot.New(
 		os.Getenv("LINE_BOT_CHANNEL_SECRET"),
