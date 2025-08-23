@@ -3,6 +3,8 @@ package presentation
 import (
 	"adjuSche-back-end/application"
 	"adjuSche-back-end/servise"
+	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -65,6 +67,42 @@ func InviteUser(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "error": err.Error()})
 		return
+	}
+
+	// userId(UUID) が提供されていれば、参加者登録と空き時間を保存
+	if req.UserID != "" {
+		log.Println("req.UserID", req.UserID)
+		log.Printf("eventID: %d", eventID)
+
+		// 参加者として登録
+		err := application.RegisterEventParticipant(c.Request.Context(), eventID, req.UserID)
+		if err != nil {
+			log.Printf("参加者登録に失敗しました: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"status": "error",
+				"error":  fmt.Sprintf("参加者登録に失敗しました: %v", err),
+			})
+			return
+		}
+		log.Println("参加者登録が完了しました")
+
+		// 空き時間を Availabilities に保存
+		intervals := make([]servise.TimeInterval, 0, len(slots))
+		for _, s := range slots {
+			intervals = append(intervals, servise.TimeInterval{Start: s.PeriodStart, End: s.PeriodEnd})
+		}
+		log.Printf("保存対象の空き時間スロット数: %d", len(intervals))
+
+		err = application.SaveUserAvailabilitiesFromCalendar(c.Request.Context(), eventID, req.UserID, intervals)
+		if err != nil {
+			log.Printf("空き時間の保存に失敗しました: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"status": "error",
+				"error":  fmt.Sprintf("空き時間の保存に失敗しました: %v", err),
+			})
+			return
+		}
+		log.Println("空き時間の保存が完了しました")
 	}
 
 	// 整形
