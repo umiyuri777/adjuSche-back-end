@@ -4,10 +4,12 @@ import (
 	"adjuSche-back-end/presentation"
 	"adjuSche-back-end/repository"
 	"adjuSche-back-end/servise"
+	"context"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
@@ -42,7 +44,21 @@ func main() {
 			c.String(500, "Error connecting to database: %v", err)
 			return
 		}
-		repo.InsertUser()
+
+		ctx := context.Background()
+
+		mockUser := &repository.User{
+			GoogleID:  "mock-google-id" + fmt.Sprintf("%d", time.Now().UnixNano()),
+			Name:      "Mock User",
+			Email:     "msisisis@gmail.com" + fmt.Sprintf("%d", time.Now().UnixNano()),
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+		}
+
+		err = repo.CreateUser(ctx, mockUser)
+		if err != nil {
+			log.Fatalf("Failed to create user: %v", err)
+		}
 	})
 	log.Println("サーバーを起動しています... http://localhost:8080")
 	r.Run(":8080")
@@ -61,39 +77,38 @@ func handleLineWebhook(c *gin.Context) {
 		return
 	}
 
-    // リクエスト処理
+	// リクエスト処理
 	events, berr := bot.ParseRequest(c.Request)
 	if berr != nil {
 		fmt.Println(berr.Error())
 		return
 	}
-    
-	for _, event := range events {
-        if event.Type == linebot.EventTypeMessage {
-            switch message := event.Message.(type) {
-            case *linebot.TextMessage:
-				_, rerr := bot.ReplyMessage(
-                    event.ReplyToken,
-					linebot.NewTextMessage(getResMessage(message.Text)),
-                    ).Do()
-                    if rerr != nil {
-                        fmt.Println(rerr.Error())
-                    }
-                }
-            }
-        }
-    }
-    
-func getResMessage(message string) string {
 
-    if message == "日程調整" {
-        formURL := getFormURL() 
-        return formURL
-    }
-    return "日程調整をしたい場合は、「日程調整」と入力してください。"
+	for _, event := range events {
+		if event.Type == linebot.EventTypeMessage {
+			switch message := event.Message.(type) {
+			case *linebot.TextMessage:
+				_, rerr := bot.ReplyMessage(
+					event.ReplyToken,
+					linebot.NewTextMessage(getResMessage(message.Text)),
+				).Do()
+				if rerr != nil {
+					fmt.Println(rerr.Error())
+				}
+			}
+		}
+	}
+}
+
+func getResMessage(message string) string {
+	if message == "日程調整" {
+		formURL := getFormURL()
+		return formURL
+	}
+	return "日程調整をしたい場合は、「日程調整」と入力してください。"
 }
 
 func getFormURL() string {
-    // TODO: LINEのメッセージ解析やフォーム生成ロジックの実装
-    return "https://amazon.com"
+	// TODO: LINEのメッセージ解析やフォーム生成ロジックの実装
+	return "https://amazon.com"
 }
