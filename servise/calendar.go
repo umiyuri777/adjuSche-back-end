@@ -136,7 +136,7 @@ func (cs *CalendarService) GetEventsInDateRange(startDate, endDate time.Time) ([
 }
 
 func GetGoogleCalendarEvents(c *gin.Context) {
-	const CredFile = "env/client_secret.json"
+	const CredFile = "client_secret.json"
 
 	tokenString, err := extractTokenFromHeader(c)
 	if err != nil {
