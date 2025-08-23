@@ -60,3 +60,23 @@ func CreateEvent(c *gin.Context) {
 		EventID: strconv.FormatInt(id, 10),
 	})
 }
+
+type GetEventNameByIDRequest  struct {
+	EventID int64 `json:"eventID" binding:"required"`
+}
+
+func GetEventNameByID(c *gin.Context) {
+	var req GetEventNameByIDRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "error": err.Error()})
+		return
+	}
+
+	eventName, err := application.GetEventNameByID(c.Request.Context(), req.EventID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"name": eventName})
+}
