@@ -93,10 +93,13 @@ func handleLineWebhook(c *gin.Context) {
 func getResMessage(message string) string {
 
     if message == "日程調整" {
-        // TODO: LINEのメッセージ解析やフォーム生成ロジックの実装
-        formURL := "https://amazon.com"
+        formURL := getFormURL() 
         return formURL
     }
     return "日程調整をしたい場合は、「日程調整」と入力してください。"
+}
 
+func getFormURL() string {
+    // TODO: LINEのメッセージ解析やフォーム生成ロジックの実装
+    return "https://amazon.com"
 }
