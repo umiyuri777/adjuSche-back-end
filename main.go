@@ -8,10 +8,10 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
+	"github.com/line/line-bot-sdk-go/v7/linebot"
 )
 
 func main() {
@@ -49,32 +49,54 @@ func main() {
 }
 
 
-type LineWebhookRequest struct {
-	Message string `json:"message" binding:"required"`
-}
-
 type LineWebhookResponse struct {
 	Status  string `json:"status"`
 	FormURL string `json:"form_url"`
 }
 
 func handleLineWebhook(c *gin.Context) {
-	var req LineWebhookRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
+	bot, err := linebot.New(
+		os.Getenv("LINE_BOT_CHANNEL_SECRET"),
+		os.Getenv("LINE_BOT_CHANNEL_TOKEN"),
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
 			"status": "error",
-			"error":  "無効なリクエストボディです",
+			"error":  "LINEボットの初期化に失敗しました",
 		})
 		return
 	}
 
-	// TODO: LINEのメッセージ解析やフォーム生成ロジックの実装
-	formURL := fmt.Sprintf("https://example.com/form/%d", time.Now().UnixNano())
-
-	resp := LineWebhookResponse{
-		Status:  "success",
-		FormURL: formURL,
+    // リクエスト処理
+	events, berr := bot.ParseRequest(c.Request)
+	if berr != nil {
+		fmt.Println(berr.Error())
+		return
 	}
+    
+	for _, event := range events {
+        if event.Type == linebot.EventTypeMessage {
+            switch message := event.Message.(type) {
+            case *linebot.TextMessage:
+				_, rerr := bot.ReplyMessage(
+                    event.ReplyToken,
+					linebot.NewTextMessage(getResMessage(message.Text)),
+                    ).Do()
+                    if rerr != nil {
+                        fmt.Println(rerr.Error())
+                    }
+                }
+            }
+        }
+    }
+    
+func getResMessage(message string) string {
 
-	c.JSON(http.StatusOK, resp)
+    if message == "日程調整" {
+        // TODO: LINEのメッセージ解析やフォーム生成ロジックの実装
+        formURL := "https://amazon.com"
+        return formURL
+    }
+    return "日程調整をしたい場合は、「日程調整」と入力してください。"
+
 }
