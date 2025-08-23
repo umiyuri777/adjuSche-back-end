@@ -10,9 +10,6 @@ import (
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
-
-	"github.com/jackc/pgx/v5"
-
 )
 
 type User struct {
@@ -110,8 +107,7 @@ func NewSupabaseRepository() (*SupabaseRepositoryImpl, error) {
 	return &SupabaseRepositoryImpl{db: db}, nil
 }
 
-
-func connectDB() (*pgx.Conn, error) {
+func connectDB() (*gorm.DB, error) {
 
 	host := os.Getenv("SUPABASE_HOST")
 	port := os.Getenv("SUPABASE_PORT")
