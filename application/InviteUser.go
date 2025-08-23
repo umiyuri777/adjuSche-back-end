@@ -132,3 +132,21 @@ func SaveUserAvailabilitiesFromCalendar(ctx context.Context, eventID int64, user
 	fmt.Printf("ReplaceUserAvailabilitiesForEvent 完了\n")
 	return nil
 }
+
+// RegisterEventParticipant はユーザーをイベントの参加者として登録します
+func RegisterEventParticipant(ctx context.Context, eventID int64, userID string) error {
+	fmt.Printf("RegisterEventParticipant: eventID=%d, userID=%s\n", eventID, userID)
+
+	repo, err := repository.NewSupabaseRepository()
+	if err != nil {
+		return fmt.Errorf("failed to init repository: %w", err)
+	}
+
+	participant, err := repo.GetOrCreateEventParticipant(ctx, eventID, userID)
+	if err != nil {
+		return fmt.Errorf("failed to register event participant: %w", err)
+	}
+
+	fmt.Printf("参加者登録完了: participantID=%d, status=%d\n", participant.ID, participant.Status)
+	return nil
+}

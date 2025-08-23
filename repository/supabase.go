@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -47,11 +48,15 @@ func (EventCondition) TableName() string {
 
 // EventParticipant は EventParticipants テーブルのレコードを表します
 type EventParticipant struct {
-	ID       int64        `json:"id" gorm:"primaryKey"` // int8 から int64 に変更
-	EventID  int64        `json:"event_id"`             // int8 から int64 に変更
-	UserID   int64        `json:"user_id"`              // int8 から int64 に変更
-	Status   int8         `json:"status"`
-	JoinedAt sql.NullTime `json:"joined_at"`
+	ID       int64          `json:"id" gorm:"primaryKey"`     // int8 から int64 に変更
+	EventID  int64          `json:"event_id"`                 // int8 から int64 に変更
+	UserID   string         `json:"user_id" gorm:"type:uuid"` // uuid型に修正
+	Status   int8           `json:"status"`
+	JoinedAt sql.NullString `json:"joined_at"` // text型に変更
+}
+
+func (EventParticipant) TableName() string {
+	return "EventParticipants"
 }
 
 // Availability は Availabilities テーブルのレコードを表します
@@ -253,4 +258,39 @@ func (r *SupabaseRepositoryImpl) ReplaceUserAvailabilitiesForEvent(ctx context.C
 	}
 	log.Printf("トランザクション完了")
 	return nil
+}
+
+// GetOrCreateEventParticipant は参加者を取得または作成します
+func (r *SupabaseRepositoryImpl) GetOrCreateEventParticipant(ctx context.Context, eventID int64, userID string) (*EventParticipant, error) {
+	// 既存の参加者レコードを検索
+	var participant EventParticipant
+	err := r.db.WithContext(ctx).Where("event_id = ? AND user_id = ?", eventID, userID).First(&participant).Error
+
+	if err == nil {
+		// 既存のレコードが見つかった場合
+		log.Printf("既存の参加者レコードを発見: ID=%d, Status=%d", participant.ID, participant.Status)
+		return &participant, nil
+	}
+
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		// 検索時のエラー（レコードが見つからない以外のエラー）
+		return nil, fmt.Errorf("failed to search event participant: %w", err)
+	}
+
+	// レコードが見つからない場合、新しい参加者を作成
+	log.Printf("新しい参加者レコードを作成: eventID=%d, userID=%s", eventID, userID)
+	now := time.Now()
+	newParticipant := EventParticipant{
+		EventID:  eventID,
+		UserID:   userID,
+		Status:   ParticipantStatusAccepted, // /invite にアクセスした時点で受諾とみなす
+		JoinedAt: sql.NullString{String: now.Format(time.RFC3339), Valid: true},
+	}
+
+	if err := r.db.WithContext(ctx).Create(&newParticipant).Error; err != nil {
+		return nil, fmt.Errorf("failed to create event participant: %w", err)
+	}
+
+	log.Printf("新しい参加者レコードを作成しました: ID=%d", newParticipant.ID)
+	return &newParticipant, nil
 }
