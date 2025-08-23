@@ -38,10 +38,9 @@ func main() {
 		ctx := context.Background()
 
 		mockUser := &repository.User{
-			ID:        1,
 			GoogleID:  "mock-google-id",
 			Name:      "Mock User",
-			Email:     "mokcuser@example.com",
+			Email:     "mockuser@example.com",
 			CreatedAt: time.Now(),
 			UpdatedAt: time.Now(),
 		}

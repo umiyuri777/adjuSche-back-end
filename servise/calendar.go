@@ -91,8 +91,8 @@ type CalendarEvent struct {
 }
 
 type DateRangeRequest struct {
-	StartDate  string `json:"start_date" binding:"required"` // RFC3339形式の開始日時
-	EndDate    string `json:"end_date" binding:"required"`   // RFC3339形式の終了日時
+	StartDate string `json:"start_date" binding:"required"` // RFC3339形式の開始日時
+	EndDate   string `json:"end_date" binding:"required"`   // RFC3339形式の終了日時
 }
 
 func (cs *CalendarService) GetEventsInDateRange(startDate, endDate time.Time) ([]*CalendarEvent, error) {

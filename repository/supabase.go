@@ -22,6 +22,11 @@ type User struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
+// TableName を追加して GORM にテーブル名を指定
+func (User) TableName() string {
+	return "Users" // 既存のテーブル名を指定
+}
+
 // Event は Events テーブルのレコードを表します
 type Event struct {
 	ID               int64          `json:"id" gorm:"primaryKey"`
@@ -143,12 +148,6 @@ func connectDB() (*gorm.DB, error) {
 	}
 	if err := sqlDB.Ping(); err != nil {
 		return nil, fmt.Errorf("failed to ping database: %w", err)
-	}
-
-	// **AutoMigrate を追加**
-	err = db.AutoMigrate(&User{})
-	if err != nil {
-		return nil, fmt.Errorf("failed to auto-migrate database: %w", err)
 	}
 
 	log.Println("successfully connected to the database with GORM")
